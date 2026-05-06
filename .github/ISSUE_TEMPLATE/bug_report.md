@@ -19,7 +19,7 @@ What you expected to happen.
 
 **Environment**
 - Python version:
-- `deepseek-mcp` version (commit or tag):
+- `openrouter-mcp` version (commit or tag):
 - MCP client (Claude Code / Codex / other):
 - OS:
 

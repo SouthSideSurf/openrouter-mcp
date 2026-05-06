@@ -2,32 +2,12 @@
 
 ## MCP servers start at client launch
 
-If you edit `.mcp.json` or change environment variables, restart Claude Code, Codex, or your MCP client.
+If you change MCP configuration or environment variables, restart Claude Code or your MCP client.
 
-## Claude and Codex env handling differ
+## Model IDs do not include the `openrouter/` prefix
 
-Claude project MCP configs commonly use:
-
-```json
-{
-  "env": {
-    "DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
-  }
-}
-```
-
-Codex TOML may not expand that syntax. Prefer explicit env configuration in `~/.codex/config.toml` or your local secret mechanism.
-
-## The server name and tool name are different
-
-Your MCP server can be named `deepseek`, while the tool exposed by that server is also named `deepseek`.
-
-In Claude Code this often appears as:
-
-```text
-mcp__deepseek__deepseek
-```
+When calling OpenRouter's API directly (which this server does), use the bare model ID, e.g. `nvidia/nemotron-3-super-120b-a12b` — not `openrouter/nvidia/...`. The `openrouter/` prefix is only used when *another* provider routes to OpenRouter as a backend.
 
 ## The model is not the owner
 
-DeepSeek is useful for bounded worker tasks. It should not be the final authority on security, architecture, legal, client, or public communication decisions.
+Worker models are useful for bounded tasks like classification, extraction, and formatting. They should not be the final authority on security, architecture, legal, client-facing, or public communication decisions. Treat output as candidate text to review.

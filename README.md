@@ -14,7 +14,7 @@ worker(prompt, system?)          — fast, non-thinking task execution
 advisor(prompt, system?, effort?) — deeper reasoning mode
 ```
 
-Currently configured to use **Nemotron 3 Super 120B** (`openrouter/nvidia/nemotron-3-super-120b-a12b`) via OpenRouter. Change the model constants at the top of `server.py` to try any other OpenRouter model.
+Currently configured to use **Nemotron 3 Super 120B** (`nvidia/nemotron-3-super-120b-a12b`) via OpenRouter. Change the model constants at the top of `server.py` to try any other OpenRouter model.
 
 ## Quickstart
 
@@ -36,24 +36,14 @@ export OPENROUTER_API_KEY="sk-or-..."
 
 ### 3. Configure for Claude Code (system-wide)
 
-Add to `~/.claude/settings.json`:
+Register the MCP server at user scope so it's available in every project:
 
-```json
-{
-  "mcpServers": {
-    "openrouter": {
-      "command": "openrouter-mcp-server",
-      "args": [],
-      "env": {
-        "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}"
-      }
-    }
-  },
-  "env": {
-    "OPENROUTER_API_KEY": "sk-or-..."
-  }
-}
+```bash
+claude mcp add-json --scope user openrouter \
+  '{"type":"stdio","command":"openrouter-mcp-server","args":[],"env":{"OPENROUTER_API_KEY":"sk-or-..."}}'
 ```
+
+(Replace `sk-or-...` with your real key, or substitute `"$OPENROUTER_API_KEY"` if you have it exported.)
 
 Restart Claude Code. The tools will be available as:
 

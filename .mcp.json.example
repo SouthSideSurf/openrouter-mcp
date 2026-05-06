@@ -1,10 +1,10 @@
 {
   "mcpServers": {
-    "deepseek": {
-      "command": "deepseek-mcp-server",
+    "openrouter": {
+      "command": "openrouter-mcp-server",
       "args": [],
       "env": {
-        "DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
+        "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}"
       }
     }
   }

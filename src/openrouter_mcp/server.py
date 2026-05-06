@@ -17,8 +17,8 @@ SERVER_NAME = "openrouter-mcp"
 SERVER_VERSION = "0.1.0"
 
 # Models — change these to try different OpenRouter models.
-WORKER_MODEL = "openrouter/nvidia/nemotron-3-super-120b-a12b"
-ADVISOR_MODEL = "openrouter/nvidia/nemotron-3-super-120b-a12b"
+WORKER_MODEL = "nvidia/nemotron-3-super-120b-a12b"
+ADVISOR_MODEL = "nvidia/nemotron-3-super-120b-a12b"
 
 PRICING: dict[str, dict[str, float]] = {
     WORKER_MODEL: {"in": 0.09, "out": 0.45},

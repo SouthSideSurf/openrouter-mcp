@@ -52,6 +52,10 @@ mcp__openrouter__worker    — fast task execution
 mcp__openrouter__advisor   — reasoning mode
 ```
 
+### 4. Tell Claude when to use them
+
+Claude knows the tools exist but defaults to doing tasks itself. Add a directive to `~/.claude/CLAUDE.md` (global) or `<project>/CLAUDE.md` so it routes mechanical work to the worker. See [`example-CLAUDE.md`](example-CLAUDE.md) for a starting point you can copy.
+
 ## CLI
 
 ```bash

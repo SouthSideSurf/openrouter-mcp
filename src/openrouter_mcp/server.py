@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP stdio server exposing two DeepSeek tools: deepseek (flash) and advise (pro+thinking)."""
+"""MCP stdio server exposing two tools via OpenRouter: worker (fast) and advisor (reasoning)."""
 
 from __future__ import annotations
 
@@ -13,12 +13,16 @@ from typing import Any
 from openai import OpenAI
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_NAME = "deepseek-mcp"
-SERVER_VERSION = "0.5.1"
+SERVER_NAME = "openrouter-mcp"
+SERVER_VERSION = "0.1.0"
+
+# Models — change these to try different OpenRouter models.
+WORKER_MODEL = "openrouter/nvidia/nemotron-3-super-120b-a12b"
+ADVISOR_MODEL = "openrouter/nvidia/nemotron-3-super-120b-a12b"
 
 PRICING: dict[str, dict[str, float]] = {
-    "deepseek-v4-flash": {"in": 0.14, "out": 0.28},
-    "deepseek-v4-pro": {"in": 0.435, "out": 1.74},
+    WORKER_MODEL: {"in": 0.09, "out": 0.45},
+    ADVISOR_MODEL: {"in": 0.09, "out": 0.45},
 }
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -51,19 +55,19 @@ ADVISOR_SYSTEM_PROMPT = (
 EFFORT_LEVELS = {"medium": "medium", "high": "high", "max": "max"}
 DEFAULT_EFFORT = "high"
 
-LOG_DIR = os.path.expanduser("~/.deepseek-mcp")
+LOG_DIR = os.path.expanduser("~/.openrouter-mcp")
 LOG_FILE = os.path.join(LOG_DIR, "calls.jsonl")
 
 
 def api_client() -> OpenAI:
     return OpenAI(
-        api_key=os.environ.get("DEEPSEEK_API_KEY", ""),
-        base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+        base_url=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
     )
 
 
 def _api_key_status() -> str:
-    key = os.environ.get("DEEPSEEK_API_KEY", "")
+    key = os.environ.get("OPENROUTER_API_KEY", "")
     if not key:
         return "missing"
     if len(key) < 8:
@@ -72,7 +76,7 @@ def _api_key_status() -> str:
 
 
 def _log_call(entry: dict[str, Any]) -> None:
-    if not os.environ.get("DEEPSEEK_MCP_LOG"):
+    if not os.environ.get("OPENROUTER_MCP_LOG"):
         return
     os.makedirs(LOG_DIR, exist_ok=True)
     entry["ts"] = datetime.now(timezone.utc).isoformat()
@@ -85,15 +89,15 @@ def _log_call(entry: dict[str, Any]) -> None:
 
 TOOLS: list[dict[str, Any]] = [
     {
-        "name": "deepseek",
-        "title": "DeepSeek",
+        "name": "worker",
+        "title": "OpenRouter Worker",
         "description": (
-            "Fast, cheap task execution via DeepSeek V4 Flash (non-thinking mode). "
+            "Fast, cheap task execution via OpenRouter (non-thinking mode). "
             "Best for: classification, summarization, JSON edits, table generation, "
             "template population, pattern-copy refactors, inbox triage. "
             "Not for: architecture decisions, judgment under ambiguity, security policy, "
             "client-facing final prose. "
-            "Typical latency: 2-5s. Use `advise` when you need deeper reasoning."
+            "Use `advisor` when you need deeper reasoning."
         ),
         "inputSchema": {
             "type": "object",
@@ -115,16 +119,16 @@ TOOLS: list[dict[str, Any]] = [
         },
     },
     {
-        "name": "advise",
-        "title": "DeepSeek Advisor",
+        "name": "advisor",
+        "title": "OpenRouter Advisor",
         "description": (
-            "Deep reasoning via DeepSeek V4 Pro with thinking mode enabled. "
-            "Use when `deepseek` is not sufficient: judgment under ambiguity, "
+            "Deep reasoning via OpenRouter with thinking/reasoning mode enabled. "
+            "Use when `worker` is not sufficient: judgment under ambiguity, "
             "architectural tradeoffs, second opinions on consequential decisions, "
             "complex multi-factor analysis, or anything where being wrong has real cost. "
             "Defaults to effort=max — exhaustive reasoning. "
             "Returns structured response: CONCLUSION / REASONING / WATCH OUT. "
-            "More expensive (~6x flash) and slower (60-120s). "
+            "Slower than worker. "
             "Use effort=medium or high only when you need a quicker lighter read."
         ),
         "inputSchema": {
@@ -141,9 +145,9 @@ TOOLS: list[dict[str, Any]] = [
                     "default": "max",
                     "description": (
                         "Reasoning depth. "
-                        "max (default): exhaustive, for the hardest decisions (~90-120s). "
-                        "high: full chain-of-thought + alternatives (~60s). "
-                        "medium: lighter thinking, quicker (~30s)."
+                        "max (default): exhaustive, for the hardest decisions. "
+                        "high: full chain-of-thought + alternatives. "
+                        "medium: lighter thinking, quicker."
                     ),
                 },
                 "show_reasoning": {
@@ -184,7 +188,7 @@ def _format_cost(cost: float | None) -> str:
     return f"  cost=${cost:.4f}"
 
 
-def call_deepseek(args: dict[str, Any], progress_token: Any = None) -> str:
+def call_worker(args: dict[str, Any], progress_token: Any = None) -> str:
     system_parts = [DEFAULT_SYSTEM_PROMPT]
     if args.get("system"):
         system_parts.append(args["system"])
@@ -194,21 +198,20 @@ def call_deepseek(args: dict[str, Any], progress_token: Any = None) -> str:
     ]
 
     started_at = time.time()
-    model = "deepseek-v4-flash"
+    model = WORKER_MODEL
 
     stream = api_client().chat.completions.create(
         model=model,
         messages=messages,
         stream=True,
         stream_options={"include_usage": True},
-        extra_body={"thinking": {"type": "disabled"}},
     )
 
     text, usage, _reasoning = _collect_stream(stream, progress_token)
     result = _format_result(text, usage, model, started_at)
     cost = _compute_cost(usage, model)
     _log_call({
-        "tool": "deepseek", "model": model,
+        "tool": "worker", "model": model,
         "tokens_in": getattr(usage, "prompt_tokens", None) if usage else None,
         "tokens_out": getattr(usage, "completion_tokens", None) if usage else None,
         "latency_s": round(time.time() - started_at, 2),
@@ -228,16 +231,16 @@ def call_advisor(args: dict[str, Any], progress_token: Any = None) -> str:
 
     effort = EFFORT_LEVELS.get(args.get("effort", "max"), "max")
     started_at = time.time()
-    model = "deepseek-v4-pro"
+    model = ADVISOR_MODEL
 
+    # OpenRouter reasoning: pass reasoning parameter in extra_body
     stream = api_client().chat.completions.create(
         model=model,
         messages=messages,
         stream=True,
         stream_options={"include_usage": True},
         extra_body={
-            "thinking": {"type": "enabled"},
-            "reasoning_effort": effort,
+            "reasoning": {"effort": effort},
         },
     )
 
@@ -245,7 +248,7 @@ def call_advisor(args: dict[str, Any], progress_token: Any = None) -> str:
     result = _format_result(text, usage, f"{model}·{effort}", started_at)
     cost = _compute_cost(usage, model)
     _log_call({
-        "tool": "advise", "model": model, "effort": effort,
+        "tool": "advisor", "model": model, "effort": effort,
         "tokens_in": getattr(usage, "prompt_tokens", None) if usage else None,
         "tokens_out": getattr(usage, "completion_tokens", None) if usage else None,
         "latency_s": round(time.time() - started_at, 2),
@@ -295,18 +298,18 @@ def _format_result(text: str, usage: Any, model_label: str, started_at: float) -
     cost_str = _format_cost(cost)
     if cost_str:
         metadata.append(cost_str)
-    return f"{text}\n\n---\n_deepseek · {'  '.join(metadata)}_"
+    return f"{text}\n\n---\n_openrouter · {'  '.join(metadata)}_"
 
 
 def error_text(exc: Exception) -> str:
     raw = str(exc)
     lowered = raw.lower()
     if "402" in raw or "insufficient" in lowered:
-        return f"DeepSeek API: insufficient balance. Add credits at platform.deepseek.com. ({raw})"
+        return f"OpenRouter API: insufficient balance. Add credits at openrouter.ai. ({raw})"
     if "401" in raw or "authentication" in lowered:
-        return f"DeepSeek API: invalid key. Check DEEPSEEK_API_KEY. ({raw})"
+        return f"OpenRouter API: invalid key. Check OPENROUTER_API_KEY. ({raw})"
     if "timeout" in lowered:
-        return f"DeepSeek API: request timed out. Try a shorter prompt. ({raw})"
+        return f"OpenRouter API: request timed out. Try a shorter prompt. ({raw})"
     return raw
 
 
@@ -318,8 +321,8 @@ def handle(request: dict[str, Any]) -> dict[str, Any] | None:
         key_status = _api_key_status()
         if key_status != "set":
             print(
-                "deepseek-mcp: DEEPSEEK_API_KEY not set. "
-                "Get a key at platform.deepseek.com and add to your MCP config env.",
+                "openrouter-mcp: OPENROUTER_API_KEY not set. "
+                "Get a key at openrouter.ai and add to your MCP config env.",
                 file=sys.stderr,
                 flush=True,
             )
@@ -350,10 +353,10 @@ def handle(request: dict[str, Any]) -> dict[str, Any] | None:
         args = params.get("arguments", {})
         progress_token = params.get("_meta", {}).get("progressToken")
         try:
-            if tool_name == "advise":
+            if tool_name == "advisor":
                 text = call_advisor(args, progress_token)
             else:
-                text = call_deepseek(args, progress_token)
+                text = call_worker(args, progress_token)
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,

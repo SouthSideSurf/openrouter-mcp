@@ -1,30 +1,30 @@
-from deepseek_mcp.server import TOOLS, handle
+from openrouter_mcp.server import TOOLS, handle
 
 
 def test_initialize_response():
     import os
     # Ensure key is unset so apiKey status is "missing"
-    old = os.environ.pop("DEEPSEEK_API_KEY", None)
+    old = os.environ.pop("OPENROUTER_API_KEY", None)
     try:
         response = handle({"jsonrpc": "2.0", "id": 1, "method": "initialize"})
     finally:
         if old is not None:
-            os.environ["DEEPSEEK_API_KEY"] = old
+            os.environ["OPENROUTER_API_KEY"] = old
 
     assert response["jsonrpc"] == "2.0"
     assert response["id"] == 1
     assert response["result"]["protocolVersion"] == "2024-11-05"
-    assert response["result"]["serverInfo"]["name"] == "deepseek-mcp"
-    assert response["result"]["serverInfo"]["version"] == "0.5.1"
+    assert response["result"]["serverInfo"]["name"] == "openrouter-mcp"
+    assert response["result"]["serverInfo"]["version"] == "0.1.0"
     assert response["result"]["serverInfo"]["apiKey"] in ("set", "missing")
 
 
-def test_tools_list_exposes_deepseek_tool():
+def test_tools_list_exposes_worker_tool():
     response = handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
 
     tools = response["result"]["tools"]
     assert tools == TOOLS
-    assert tools[0]["name"] == "deepseek"
+    assert tools[0]["name"] == "worker"
     assert tools[0]["inputSchema"]["required"] == ["prompt"]
 
 
